@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <title>Lançamentos - Dashboard Roça</title>
+    <style>
+        :root {
+            --cor-primaria: #6d28d9; --cor-destaque: #8b5cf6; --cor-fundo: #f5f3f7; --cor-card: #ffffff;
+            --cor-texto: #333; --sombra-card: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+            --cor-sucesso: #16a34a; --cor-erro: #dc2626;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: var(--cor-fundo); margin: 0; padding: 20px; }
+        .container { width: 100%; max-width: 1400px; margin: 0 auto; }
+        header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 20px; }
+        .card { background-color: var(--cor-card); border-radius: 12px; box-shadow: var(--sombra-card); padding: 25px; margin-bottom: 25px; }
+        select, input, button { font-size: 1em; padding: 10px; border-radius: 6px; border: 1px solid #ccc; }
+        .btn { background-color: var(--cor-primaria); color: white; cursor: pointer; border: none; }
+        .btn:disabled { background-color: #9ca3af; cursor: not-allowed; }
+        .btn-success { background-color: var(--cor-sucesso); }
+        .btn-danger { background-color: var(--cor-erro); }
+        #area-selecao { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+        #area-lancamentos { display: none; margin-top: 20px; }
+        #area-filtros { display: flex; gap: 15px; align-items: flex-end; background-color: #f9f8fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;}
+        .botoes-acao { display: flex; gap: 15px; margin-bottom: 20px; }
+        .tabela-container { min-height: 100px; max-height: 400px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px;}
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }
+        th { background-color: #f9f8fa; position: sticky; top: 0; z-index: 1; }
+        tr:nth-child(even) { background-color: #f9f8fa; }
+        tr:hover { background-color: #f0e9ff; }
+        td.td-acoes { width: 100px; text-align: center; }
+        td button { background: none; border: none; cursor: pointer; font-size: 16px; opacity: 0.7; }
+        td button:hover { opacity: 1; }
+        .tabela-vazia, .tabela-carregando { text-align: center; padding: 40px; color: #999; font-style: italic; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-box { background: white; padding: 25px; border-radius: 12px; width: 95%; max-width: 1200px; max-height: 90vh; display: flex; flex-direction: column; }
+        .modal-body { overflow-y: auto; padding-right: 10px; }
+        .modal-footer { margin-top: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .modal-linha-form { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+        .modal-linha-form input, .modal-linha-form select { flex: 1; min-width: 80px; }
+        .modal-linha-form input[type=date] { flex-basis: 150px; flex-grow: 0; }
+        .modal-linha-form input[disabled] { background-color: #f0f0f0; }
+        .modal-linha-form .btn-remover-linha { flex-shrink: 0; padding: 5px 10px; }
+        #confirm-modal-box { max-width: 400px; text-align: center; }
+        #confirm-modal-footer { justify-content: center; }
+        #confirm-modal-footer .btn-secundario { background-color: #e5e7eb; color: #374151; border: 1px solid #ccc; }
+        #toast-notification { visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 8px; padding: 16px; position: fixed; z-index: 2000; left: 50%; transform: translateX(-50%); bottom: 30px; transition: visibility 0.5s, opacity 0.5s linear; opacity: 0; }
+        #toast-notification.show { visibility: visible; opacity: 1; }
+        #toast-notification.success { background-color: var(--cor-sucesso); }
+        #toast-notification.error { background-color: var(--cor-erro); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Lançamentos</h1>
+            <nav style="display: flex; gap: 20px;">
+                <a href="#" id="nav-dashboard">Dashboard</a>
+                <a href="#" id="nav-cadastro">Cadastro</a>
+            </nav>
+        </header>
+        <div class="card">
+            <div id="area-selecao">
+                <label for="func-select"><strong>Selecione o Funcionário:</strong></label>
+                <select id="func-select"><option value="">Carregando...</option></select>
+            </div>
+            <div id="area-lancamentos">
+                <div id="area-filtros">
+                    <div><label for="filtro-data-inicio">De</label><br><input type="date" id="filtro-data-inicio"></div>
+                    <div><label for="filtro-data-fim">Até</label><br><input type="date" id="filtro-data-fim"></div>
+                </div>
+                <div class="botoes-acao">
+                    <button class="btn btn-success" onclick="abrirModal('venda')">Nova Venda</button>
+                    <button class="btn" onclick="abrirModal('gasto')">Novo Gasto</button>
+                </div>
+                <h2>Vendas Existentes</h2>
+                <div class="tabela-container" id="container-vendas"><div class="tabela-vazia">Selecione um funcionário para ver os dados.</div></div>
+                <h2 style="margin-top: 20px;">Gastos Existentes</h2>
+                <div class="tabela-container" id="container-gastos"></div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-overlay" id="lancamento-modal"> <div class="modal-box"> <h2 id="modal-titulo">Novo Lançamento</h2> <div class="modal-body" id="modal-body"></div> <div class="modal-footer"> <button class="btn" id="btn-add-linha">Adicionar Linha</button> <div> <button class="btn btn-danger" id="btn-cancelar-modal">Cancelar</button> <button class="btn btn-success" id="btn-salvar-modal">Salvar</button> </div> </div> </div> </div>
+    <div class="modal-overlay" id="confirm-modal"> <div class="modal-box" id="confirm-modal-box"> <h3 id="confirm-modal-titulo">Confirmar Ação</h3> <p id="confirm-modal-texto">Você tem certeza?</p> <div class="modal-footer" id="confirm-modal-footer"> <button id="confirm-btn-cancelar" class="btn-secundario">Cancelar</button> <button id="confirm-btn-confirmar" class="btn btn-danger">Confirmar</button> </div> </div> </div>
+    <div id="toast-notification"></div>
+
+    <script>
+        let funcionarios = [];
+        let dadosCadastro = {};
+        let lancamentosAtuais = { vendas: [], gastos: [] };
+        let funcionarioSelecionado = '';
+        const funcSelect = document.getElementById('func-select');
+        const areaLancamentos = document.getElementById('area-lancamentos');
+        const filtroDataInicio = document.getElementById('filtro-data-inicio');
+        const filtroDataFim = document.getElementById('filtro-data-fim');
+        const lancamentoModal = document.getElementById('lancamento-modal');
+        const modalBody = document.getElementById('modal-body');
+        const modalTitulo = document.getElementById('modal-titulo');
+        const confirmModal = document.getElementById('confirm-modal');
+        
+        window.addEventListener('load', () => {
+            google.script.run.withSuccessHandler(lista => {
+                funcSelect.innerHTML = '<option value="">Selecione...</option>';
+                lista.forEach(f => funcSelect.innerHTML += `<option value="${f}">${f}</option>`);
+            }).getFuncionarios();
+            google.script.run.withSuccessHandler(dados => {
+                if (!dados.erro) dadosCadastro = dados;
+            }).getDadosCadastro();
+            google.script.run.withSuccessHandler(url => {
+                document.getElementById('nav-dashboard').href = url;
+                document.getElementById('nav-cadastro').href = url + '?page=cadastro';
+            }).getScriptUrl();
+        });
+
+        funcSelect.addEventListener('change', carregarDadosDoFuncionario);
+        filtroDataInicio.addEventListener('change', aplicarFiltrosErenderizar);
+        filtroDataFim.addEventListener('change', aplicarFiltrosErenderizar);
+        document.getElementById('btn-add-linha').addEventListener('click', () => adicionarLinhaNoModal());
+        document.getElementById('btn-cancelar-modal').addEventListener('click', () => lancamentoModal.style.display = 'none');
+        document.getElementById('btn-salvar-modal').addEventListener('click', salvarDadosDoModal);
+        document.getElementById('confirm-btn-cancelar').addEventListener('click', () => confirmModal.style.display = 'none');
+        
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast-notification');
+            toast.textContent = message;
+            toast.className = 'show ' + type;
+            setTimeout(() => { toast.className = toast.className.replace('show', ''); }, 3000);
+        }
+
+        function setLoadingState(isLoading) {
+            document.querySelectorAll('button, select, input').forEach(el => el.disabled = isLoading);
+            if (isLoading) {
+                document.getElementById('container-vendas').innerHTML = `<div class="tabela-carregando">Carregando dados...</div>`;
+                document.getElementById('container-gastos').innerHTML = ``;
+            } else {
+                document.querySelectorAll('button, select, input').forEach(el => el.disabled = false);
+            }
+        }
+
+        function carregarDadosDoFuncionario() {
+            funcionarioSelecionado = funcSelect.value;
+            if (!funcionarioSelecionado) {
+                areaLancamentos.style.display = 'none';
+                return;
+            }
+            areaLancamentos.style.display = 'block';
+            setLoadingState(true);
+            google.script.run.withSuccessHandler(resultado => {
+                setLoadingState(false);
+                if (resultado.sucesso) {
+                    lancamentosAtuais = { 
+                        vendas: resultado.vendas.map(v => ({...v, data: new Date(v.data)})), 
+                        gastos: resultado.gastos.map(g => ({...g, data: new Date(g.data)}))
+                    };
+                    aplicarFiltrosErenderizar();
+                    showToast('Dados carregados com sucesso!', 'success');
+                } else {
+                    showToast('Erro: ' + resultado.erro, 'error');
+                }
+            }).getDadosFuncionario(funcionarioSelecionado);
+        }
+
+        function aplicarFiltrosErenderizar() {
+            const dataInicio = filtroDataInicio.value ? new Date(filtroDataInicio.value + 'T00:00:00') : null;
+            const dataFim = filtroDataFim.value ? new Date(filtroDataFim.value + 'T23:59:59') : null;
+            const vendasFiltradas = lancamentosAtuais.vendas.filter(v => (!dataInicio || v.data >= dataInicio) && (!dataFim || v.data <= dataFim));
+            const gastosFiltrados = lancamentosAtuais.gastos.filter(g => (!dataInicio || g.data >= dataInicio) && (!dataFim || g.data <= dataFim));
+            renderizarTabelas(vendasFiltradas, gastosFiltrados);
+        }
+
+        function renderizarTabelas(vendas, gastos) {
+            renderizarTabela('venda', vendas);
+            renderizarTabela('gasto', gastos);
+        }
+
+        function renderizarTabela(tipo, dados) {
+            const containerEl = document.getElementById(`container-${tipo}s`);
+            if (!containerEl) return;
+
+            if (dados.length === 0) {
+                containerEl.innerHTML = `<div class="tabela-vazia">Nenhum lançamento encontrado para este período.</div>`;
+                return;
+            }
+            
+            const cabecalhos = tipo === 'venda' 
+                ? ['Data', 'Qtd', 'Produto', 'Comprador', 'Valor', 'Total', 'Status', 'Ações']
+                : ['Data', 'Qtd', 'Insumo', 'Valor', 'Total', 'Status', 'Ações'];
+            
+            let html = `<table id="tabela-${tipo}s"><thead><tr><th>${cabecalhos.join('</th><th>')}</th></tr></thead><tbody>`;
+            dados.sort((a,b) => b.data - a.data).forEach(item => {
+                const linha = tipo === 'venda'
+                    ? `<td>${formatarData(item.data)}</td><td>${item.quantidade}</td><td>${item.produto}</td><td>${item.comprador}</td><td>${formatarMoeda(item.valor)}</td><td>${formatarMoeda(item.valorTotal)}</td><td>${item.status}</td>`
+                    : `<td>${formatarData(item.data)}</td><td>${item.quantidade}</td><td>${item.insumo}</td><td>${formatarMoeda(item.valor)}</td><td>${formatarMoeda(item.valorTotal)}</td><td>${item.status}</td>`;
+                html += `<tr>${linha}<td class="td-acoes"><button onclick="editarLancamento('${tipo}', '${item.id}')">✏️</button><button onclick="excluirLancamento('${tipo}', '${item.id}')">🗑️</button></td></tr>`;
+            });
+            html += '</tbody></table>';
+            containerEl.innerHTML = html;
+        }
+
+        function abrirModal(tipo, dadosParaEditar = null) {
+            lancamentoModal.style.display = 'flex';
+            modalTitulo.textContent = tipo === 'venda' ? 'Lançar Venda' : 'Lançar Gasto';
+            modalBody.innerHTML = '';
+            if (dadosParaEditar) {
+                document.getElementById('btn-add-linha').style.display = 'none';
+                adicionarLinhaNoModal(tipo, dadosParaEditar);
+                lancamentoModal.dataset.idEditado = dadosParaEditar.id;
+            } else {
+                document.getElementById('btn-add-linha').style.display = 'block';
+                adicionarLinhaNoModal(tipo);
+                lancamentoModal.dataset.idEditado = '';
+            }
+            lancamentoModal.dataset.tipo = tipo;
+        }
+        
+        function adicionarLinhaNoModal(tipo = lancamentoModal.dataset.tipo, dados = {}) {
+            const div = document.createElement('div');
+            div.className = 'modal-linha-form';
+            const selects = {
+                produto: criarSelect(dadosCadastro.produtos || [], dados.produto),
+                comprador: criarSelect(dadosCadastro.compradores || [], dados.comprador),
+                insumo: criarSelect(dadosCadastro.insumos || [], dados.insumo),
+                status: criarSelect(['PAGO', 'A PAGAR'], dados.status)
+            };
+            const camposHtml = tipo === 'venda' ? `<input type="date" class="campo-data" value="${formatarDataParaInput(dados.data)}"><input type="number" placeholder="Qtd" class="campo-quantidade" value="${dados.quantidade || ''}">${selects.produto.outerHTML}${selects.comprador.outerHTML}<input type="number" placeholder="Valor Unitário" class="campo-valor" step="0.01" value="${dados.valor || ''}"><input type="number" placeholder="Total" class="campo-valor-total" disabled value="${dados.valorTotal || ''}">${selects.status.outerHTML}` : `<input type="date" class="campo-data" value="${formatarDataParaInput(dados.data)}"><input type="number" placeholder="Qtd" class="campo-quantidade" value="${dados.quantidade || ''}">${selects.insumo.outerHTML}<input type="number" placeholder="Valor Unitário" class="campo-valor" step="0.01" value="${dados.valor || ''}"><input type="number" placeholder="Total" class="campo-valor-total" disabled value="${dados.valorTotal || ''}">${selects.status.outerHTML}`;
+            div.innerHTML = camposHtml + '<button class="btn btn-danger btn-remover-linha" onclick="this.parentElement.remove()">X</button>';
+            modalBody.appendChild(div);
+            div.querySelectorAll('.campo-quantidade, .campo-valor').forEach(el => el.addEventListener('input', calcularTotal));
+        }
+        
+        function salvarDadosDoModal() {
+            const tipo = lancamentoModal.dataset.tipo;
+            const idEditado = lancamentoModal.dataset.idEditado;
+            const linhasDoModal = modalBody.querySelectorAll('.modal-linha-form');
+            const novosLancamentos = [];
+            for (const linha of linhasDoModal) {
+                // [CORREÇÃO APLICADA AQUI] Converte a data string do input para um objeto Date.
+                const dataString = linha.querySelector('.campo-data').value;
+                const quantidade = parseFloat(linha.querySelector('.campo-quantidade').value);
+                const valor = parseFloat(linha.querySelector('.campo-valor').value);
+
+                if (!dataString || isNaN(quantidade) || isNaN(valor)) {
+                    showToast('Preencha Data, Qtd e Valor em todas as linhas.', 'error'); return;
+                }
+
+                // Adiciona T00:00:00 para evitar problemas de fuso horário ao converter.
+                const data = new Date(dataString + 'T00:00:00');
+
+                const novoItem = tipo === 'venda' ? 
+                    { data, quantidade, valor, produto: linha.querySelectorAll('select')[0].value, comprador: linha.querySelectorAll('select')[1].value, status: linha.querySelectorAll('select')[2].value } : 
+                    { data, quantidade, valor, insumo: linha.querySelector('select').value, status: linha.querySelectorAll('select')[1].value };
+                
+                novoItem.valorTotal = novoItem.quantidade * novoItem.valor;
+                novosLancamentos.push(novoItem);
+            }
+            
+            setLoadingState(true);
+
+            if (idEditado) {
+                const index = lancamentosAtuais[tipo + 's'].findIndex(item => item.id === idEditado);
+                if (index !== -1) lancamentosAtuais[tipo + 's'][index] = { ...lancamentosAtuais[tipo + 's'][index], ...novosLancamentos[0] };
+            } else {
+                novosLancamentos.forEach((item, i) => lancamentosAtuais[tipo + 's'].push({ ...item, id: `${tipo}_new_${Date.now()}_${i}` }));
+            }
+
+            // [CORREÇÃO APLICADA AQUI] Cria uma cópia limpa dos dados para enviar, com datas no formato string.
+            const dadosParaEnviar = {
+                vendas: lancamentosAtuais.vendas.map(v => ({...v, data: v.data.toISOString()})),
+                gastos: lancamentosAtuais.gastos.map(g => ({...g, data: g.data.toISOString()}))
+            };
+
+            google.script.run.withSuccessHandler(res => {
+                setLoadingState(false);
+                if (res.sucesso) {
+                    lancamentoModal.style.display = 'none';
+                    carregarDadosDoFuncionario();
+                    showToast('Lançamentos salvos com sucesso!', 'success');
+                } else {
+                    showToast('Erro ao salvar: ' + res.erro, 'error');
+                }
+            }).salvarLancamentos(funcionarioSelecionado, dadosParaEnviar);
+        }
+
+        function editarLancamento(tipo, id) {
+            const itemParaEditar = lancamentosAtuais[tipo + 's'].find(item => item.id === id);
+            if (itemParaEditar) abrirModal(tipo, itemParaEditar);
+        }
+
+        function excluirLancamento(tipo, id) {
+            const callbackConfirmacao = () => {
+                setLoadingState(true);
+                lancamentosAtuais[tipo + 's'] = lancamentosAtuais[tipo + 's'].filter(item => item.id !== id);
+                
+                const dadosParaEnviar = {
+                    vendas: lancamentosAtuais.vendas.map(v => ({...v, data: v.data.toISOString()})),
+                    gastos: lancamentosAtuais.gastos.map(g => ({...g, data: g.data.toISOString()}))
+                };
+
+                google.script.run.withSuccessHandler(res => {
+                    setLoadingState(false);
+                    if (res.sucesso) {
+                        aplicarFiltrosErenderizar();
+                        showToast('Lançamento excluído com sucesso.', 'success');
+                    } else {
+                        showToast('Erro ao excluir: ' + res.erro, 'error');
+                        carregarDadosDoFuncionario();
+                    }
+                }).salvarLancamentos(funcionarioSelecionado, dadosParaEnviar);
+            };
+            abrirConfirmacaoModal('Tem certeza que deseja excluir este lançamento?', callbackConfirmacao);
+        }
+
+        function abrirConfirmacaoModal(texto, callbackConfirmacao) {
+            document.getElementById('confirm-modal-texto').textContent = texto;
+            confirmModal.style.display = 'flex';
+            document.getElementById('confirm-btn-confirmar').onclick = () => {
+                confirmModal.style.display = 'none';
+                callbackConfirmacao();
+            };
+        }
+        
+        function calcularTotal(event) {
+            const linha = event.target.closest('.modal-linha-form');
+            const qtd = parseFloat(linha.querySelector('.campo-quantidade').value) || 0;
+            const valor = parseFloat(linha.querySelector('.campo-valor').value) || 0;
+            linha.querySelector('.campo-valor-total').value = (qtd * valor).toFixed(2);
+        }
+
+        function criarSelect(opcoes, selecionado) {
+            const select = document.createElement('select');
+            select.innerHTML = '<option value="">Selecione</option>';
+            opcoes.forEach(opt => select.innerHTML += `<option value="${opt}" ${opt === selecionado ? 'selected' : ''}>${opt}</option>`);
+            return select;
+        }
+
+        function formatarData(data) { return data ? data.toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : ''; }
+        function formatarDataParaInput(data) {
+            if (!data) return new Date().toISOString().split('T')[0];
+            const d = new Date(data);
+            const mes = ('0' + (d.getUTCMonth() + 1)).slice(-2);
+            const dia = ('0' + d.getUTCDate()).slice(-2);
+            return `${d.getUTCFullYear()}-${mes}-${dia}`;
+        }
+        function formatarMoeda(valor) {
+            return typeof valor === 'number' ? valor.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'}) : '';
+        }
+    </script>
+</body>
+</html>
